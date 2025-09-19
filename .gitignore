@@ -171,9 +171,6 @@ cython_debug/
 # Built Visual Studio Code Extensions
 *.vsix
 
-# Streamlit
-.streamlit/
-
 # Generated files specific to this project
 generated_resume.pdf
 enhanced_resume.pdf
