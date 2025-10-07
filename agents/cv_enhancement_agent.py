@@ -583,7 +583,7 @@ class CVEnhancementAgent:
 ## Enhancement Requirements:
 
 ### 1. Header & Name Formatting
-- Start with the candidate's full name as the MAIN HEADER (use # in markdown)
+- Start with the candidate's name as the MAIN HEADER (use # in markdown). First Name and Middle Initial only (Satadeep Dasgupta -> S Dasgupta).
 - Follow with job title/role (use ## in markdown)
 - Do NOT include any contact information, addresses, emails, or phone numbers
 - Keep the header clean and professional
