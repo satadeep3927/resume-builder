@@ -662,6 +662,131 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
         logger.info(f"CV enhancement workflow completed: {output_path}")
         return str(Path(output_path).absolute())
 
+    def _generate_pdf_from_content(self, content: str, output_path: str, include_logo: bool = True) -> bool:
+        """Generate PDF directly from content string."""
+        try:
+            import markdown
+            from xhtml2pdf import pisa
+            import os
+            import base64
+            
+            logger.info(f"Generating PDF from custom content: {output_path}")
+            
+            # Convert markdown-like content to HTML with proper extensions
+            html_content = markdown.markdown(
+                content, 
+                extensions=["tables", "fenced_code", "nl2br", "sane_lists"]
+            )
+            
+            # Generate PDF and HTML files
+            output_file = Path(output_path)
+            
+            # Check if logo should be included
+            logo_html = ""
+            if include_logo:
+                logo_path = os.path.join(os.getcwd(), "assets", "brainium-logo.svg")
+                if os.path.exists(logo_path):
+                    try:
+                        # Try to convert SVG to base64 for embedding
+                        with open(logo_path, 'rb') as logo_file:
+                            logo_data = base64.b64encode(logo_file.read()).decode('utf-8')
+                            logo_html = f'''
+                            <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 15px;">
+                                <img src="data:image/svg+xml;base64,{logo_data}" alt="Brainium Logo" style="max-width: 150px; height: auto;">
+                            </div>
+                            '''
+                            logger.info("Logo embedded as base64")
+                    except Exception as e:
+                        logger.warning(f"Could not embed SVG logo: {e}")
+                        # Fallback to text logo
+                        logo_html = f'''
+                        <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 15px;">
+                            <div style="font-size: 18px; font-weight: bold; color: #cc0000;">BRAINIUM</div>
+                        </div>
+                        '''
+                        logger.info("Using text logo as fallback")
+
+            # Create full HTML with styling
+            full_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        line-height: 1.4;
+                        margin: 20px;
+                        color: #333;
+                    }}
+                    h1, h2, h3, h4, h5, h6 {{
+                        color: #2c3e50;
+                        margin-top: 15px;
+                        margin-bottom: 8px;
+                    }}
+                    h1 {{
+                        font-size: 28px;
+                        text-align: left;
+                        margin-top: 0;
+                        margin-bottom: 10px;
+                    }}
+                    h2 {{
+                        font-size: 18px;
+                        margin-top: 20px;
+                        margin-bottom: 8px;
+                    }}
+                    ul, ol {{
+                        margin: 5px 0;
+                        padding-left: 20px;
+                    }}
+                    li {{
+                        margin: 2px 0;
+                        line-height: 1.3;
+                    }}
+                    ul li {{
+                        list-style-type: disc;
+                    }}
+                    ul li ul li {{
+                        list-style-type: circle;
+                    }}
+                    p {{
+                        margin: 5px 0;
+                    }}
+                    strong {{
+                        color: #2c3e50;
+                    }}
+                    code {{
+                        background-color: #f8f9fa;
+                        padding: 2px 4px;
+                        border-radius: 3px;
+                        font-family: monospace;
+                    }}
+                </style>
+            </head>
+            <body>
+            {logo_html}
+            {html_content}
+            </body>
+            </html>
+            """
+            
+            # Save HTML file
+            html_file = output_file.with_suffix(".html")
+            html_file.write_text(full_html, encoding='utf-8')
+            
+            # Generate PDF using xhtml2pdf (same method as working original)
+            pdf_file = output_file.with_suffix(".pdf")
+            
+            with open(pdf_file, "wb") as f:
+                pisa.CreatePDF(full_html, dest=f)
+            
+            logger.info(f"PDF generated using xhtml2pdf: {pdf_file}")
+            return pdf_file.exists() and html_file.exists()
+            
+        except Exception as e:
+            logger.error(f"PDF generation from content failed: {e}")
+            return False
+
 
 def create_cv_enhancement_agent() -> CVEnhancementAgent:
     """Factory function to create CV enhancement agent."""

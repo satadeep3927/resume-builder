@@ -175,6 +175,7 @@ cython_debug/
 generated_resume.pdf
 enhanced_resume.pdf
 *.pdf
+*.html
 test_*.py
 test_*.html
 test_*.md

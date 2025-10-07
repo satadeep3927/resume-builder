@@ -13,6 +13,7 @@ openai
 # PDF generation - multiple options for Windows compatibility
 markdown  # Clean markdown to HTML conversion
 xhtml2pdf  # Clean HTML to PDF conversion
+beautifulsoup4  # HTML parsing for content extraction
 # Web interface
 streamlit
 pillow
