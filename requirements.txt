@@ -18,6 +18,8 @@ beautifulsoup4  # HTML parsing for content extraction
 streamlit
 pillow
 python-docx
+# OCR for image-based document extraction
+pytesseract  # OCR engine for text extraction from images
 # dev
 black
 isort

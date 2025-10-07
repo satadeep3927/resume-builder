@@ -19,7 +19,7 @@ from jinja2 import Environment, FileSystemLoader
 from langgraph.graph import END, StateGraph
 
 from common.settings import config
-from core.document_loader import FileType, load_document
+from core.document_loader import detect_file_type, load_document
 from lib.utils import get_access_token_from_copilot
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ class CVEnhancementAgent:
     def _load_document_node(self, state: CVState) -> CVState:
         """Load CV document from file path or URL."""
         try:
-            file_type = self._detect_file_type(state["file_path"])
+            file_type = detect_file_type(state["file_path"])
             documents = load_document(state["file_path"], file_type)
             cv_content = "\n\n".join([doc.page_content for doc in documents])
 
@@ -111,7 +111,9 @@ class CVEnhancementAgent:
             if not enhanced_content:
                 raise ValueError("Empty response from AI model")
 
-            logger.info(f"CV enhancement completed successfully (length: {len(enhanced_content)} chars)")
+            logger.info(
+                f"CV enhancement completed successfully (length: {len(enhanced_content)} chars)"
+            )
             logger.debug(f"Enhanced content preview: {enhanced_content[:200]}...")
 
             return {**state, "enhanced_content": enhanced_content}
@@ -125,12 +127,16 @@ class CVEnhancementAgent:
         try:
             # Debug: Check if enhanced content exists
             if not state.get("enhanced_content", "").strip():
-                logger.error("Enhanced content is empty! Using original CV content as fallback.")
+                logger.error(
+                    "Enhanced content is empty! Using original CV content as fallback."
+                )
                 # Fallback to original content if enhancement failed
                 content_to_use = state.get("cv_content", "No content available")
             else:
                 content_to_use = state["enhanced_content"]
-                logger.info(f"Using enhanced content (length: {len(content_to_use)} chars)")
+                logger.info(
+                    f"Using enhanced content (length: {len(content_to_use)} chars)"
+                )
 
             # Get logo path if needed
             logo_path = None
@@ -146,7 +152,7 @@ class CVEnhancementAgent:
             )
 
             output_path = Path(state["output_path"])
-            
+
             # Always create HTML first for debugging
             html_path = output_path.with_suffix(".html")
             html_path.write_text(html_content, encoding="utf-8")
@@ -155,38 +161,44 @@ class CVEnhancementAgent:
             if state.get("generate_pdf", False):
                 # Generate PDF with multiple fallback options
                 pdf_path = output_path.with_suffix(".pdf")
-                pdf_generated = self._generate_pdf_with_fallbacks(html_content, pdf_path, state)
-                
+                pdf_generated = self._generate_pdf_with_fallbacks(
+                    html_content, pdf_path, state
+                )
+
                 if pdf_generated:
                     logger.info(f"PDF successfully generated: {pdf_path}")
                 else:
                     logger.warning(f"PDF generation failed, using HTML: {html_path}")
-            
+
             return state
 
         except Exception as e:
             logger.error(f"Output generation failed: {e}")
             raise
 
-    def _generate_pdf_with_fallbacks(self, html_content: str, pdf_path: Path, state: CVState) -> bool:
+    def _generate_pdf_with_fallbacks(
+        self, html_content: str, pdf_path: Path, state: CVState
+    ) -> bool:
         """Generate PDF using multiple methods with fallbacks."""
-        
+
         # Method 1: Try markdown + xhtml2pdf (clean and simple) - Primary method
         try:
+            import os
+
             import markdown
             from xhtml2pdf import pisa
-            import os
-            
-            logger.info(f"Using markdown + xhtml2pdf for clean PDF generation")
-            
+
+            logger.info("Using markdown + xhtml2pdf for clean PDF generation")
+
             # Extract and convert HTML content to markdown
             markdown_content = self._html_to_markdown(html_content)
-            
+
             # Convert markdown to HTML with proper extensions
             html = markdown.markdown(
-                markdown_content, extensions=["tables", "fenced_code", "nl2br", "sane_lists"]
+                markdown_content,
+                extensions=["tables", "fenced_code", "nl2br", "sane_lists"],
             )
-            
+
             # Check if logo should be included
             logo_html = ""
             if state.get("include_logo", False):
@@ -195,36 +207,60 @@ class CVEnhancementAgent:
                     try:
                         # Try to convert SVG to base64 for embedding
                         import base64
-                        with open(logo_path, 'rb') as logo_file:
-                            logo_data = base64.b64encode(logo_file.read()).decode('utf-8')
-                            logo_html = f'''
+
+                        with open(logo_path, "rb") as logo_file:
+                            logo_data = base64.b64encode(logo_file.read()).decode(
+                                "utf-8"
+                            )
+                            logo_html = f"""
                             <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 15px;">
                                 <img src="data:image/svg+xml;base64,{logo_data}" alt="Brainium Logo" style="max-width: 150px; height: auto;">
                             </div>
-                            '''
+                            """
                             logger.info("Logo embedded as base64")
                     except Exception as e:
                         logger.warning(f"Could not embed SVG logo: {e}")
                         # Fallback to text logo
-                        logo_html = f'''
+                        logo_html = """
                         <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 15px;">
                             <div style="font-size: 18px; font-weight: bold; color: #cc0000;">BRAINIUM</div>
                         </div>
-                        '''
+                        """
                         logger.info("Using text logo as fallback")
 
-            # Add CSS styling for better PDF formatting (based on your working example)
+            # Add CSS styling for better PDF formatting with per-page logo frames
             styled_html = f"""
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="UTF-8">
                 <style>
+                    @page {{
+                        size: a4 portrait;
+                        @frame header_frame {{           /* Static Frame */
+                            -pdf-frame-content: header_content;
+                            left: 50pt; width: 512pt; top: 50pt; height: 60pt;
+                        }}
+                        @frame content_frame {{          /* Content Frame */
+                            left: 50pt; width: 512pt; top: 120pt; height: 602pt;
+                        }}
+                        @frame footer_frame {{           /* Another static Frame */
+                            -pdf-frame-content: footer_content;
+                            left: 50pt; width: 512pt; top: 772pt; height: 20pt;
+                        }}
+                    }}
                     body {{
                         font-family: Arial, sans-serif;
                         line-height: 1.4;
-                        margin: 20px;
                         color: #333;
+                        margin: 0;
+                        padding: 0;
+                    }}
+                    #header_content {{
+                        -pdf-frame-content: header_content;
+                    }}
+                    #footer_content {{
+                        -pdf-frame-content: footer_content;
                     }}
                     h1, h2, h3, h4, h5, h6 {{
                         color: #2c3e50;
@@ -235,12 +271,14 @@ class CVEnhancementAgent:
                         font-size: 28px;
                         text-align: left;
                         margin-top: 0;
-                        margin-bottom: 10px;
+                        margin-bottom: 2px;
                     }}
                     h2 {{
-                        font-size: 18px;
-                        margin-top: 20px;
+                        font-size: 16px;
+                        margin-top: 2px;
                         margin-bottom: 8px;
+                        border-bottom: 1px solid #2c3e50;
+                        padding-bottom: 3px;
                     }}
                     ul, ol {{
                         margin: 5px 0;
@@ -271,7 +309,17 @@ class CVEnhancementAgent:
                 </style>
             </head>
             <body>
-            {logo_html}
+            <!-- Header content for every page -->
+            <div id="header_content">
+                {logo_html.replace('style="max-width: 150px; height: auto;"', 'style="max-width: 80px; height: auto;"')}
+            </div>
+            
+            <!-- Footer content for every page -->
+            <div id="footer_content">
+                <!-- Optional footer content -->
+            </div>
+            
+            <!-- Main content goes in content frame -->
             {html}
             </body>
             </html>
@@ -279,236 +327,284 @@ class CVEnhancementAgent:
 
             with open(pdf_path, "wb") as f:
                 pisa.CreatePDF(styled_html, dest=f)
-            
+
             logger.info(f"PDF generated using markdown + xhtml2pdf: {pdf_path}")
             return True
-            
+
         except Exception as e:
             logger.warning(f"markdown + xhtml2pdf generation failed: {e}")
-        
+
         # Method 2: Try reportlab (pure Python PDF generation) - Fallback method
         try:
             from reportlab.lib.pagesizes import letter
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.lib.units import inch
-            from reportlab.lib.enums import TA_LEFT, TA_CENTER
-            
+            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+
             # Create PDF using reportlab
-            doc = SimpleDocTemplate(str(pdf_path), pagesize=letter,
-                                  rightMargin=72, leftMargin=72,
-                                  topMargin=72, bottomMargin=18)
+            doc = SimpleDocTemplate(
+                str(pdf_path),
+                pagesize=letter,
+                rightMargin=72,
+                leftMargin=72,
+                topMargin=72,
+                bottomMargin=18,
+            )
             styles = getSampleStyleSheet()
-            
+
             # Extract and process enhanced content (not HTML template)
             enhanced_content = self._extract_enhanced_content(html_content)
-            
+
             # Create story (content) for PDF
             story = []
-            
+
             # Process content line by line
-            lines = enhanced_content.split('\n')
+            lines = enhanced_content.split("\n")
             for line in lines:
                 line = line.strip()
                 if not line:
                     story.append(Spacer(1, 6))
                     continue
-                    
+
                 # Detect different content types
-                if line.startswith('**') and line.endswith('**'):
+                if line.startswith("**") and line.endswith("**"):
                     # Bold headers
-                    header_text = line.replace('**', '').strip()
+                    header_text = line.replace("**", "").strip()
                     if len(header_text) < 30:  # Short headers = main titles
-                        story.append(Paragraph(header_text, styles['Title']))
+                        story.append(Paragraph(header_text, styles["Title"]))
                     else:  # Longer headers = subtitles
-                        story.append(Paragraph(header_text, styles['Heading1']))
-                elif line.startswith('---'):
+                        story.append(Paragraph(header_text, styles["Heading1"]))
+                elif line.startswith("---"):
                     # Separators
                     story.append(Spacer(1, 12))
-                elif line.startswith('- '):
+                elif line.startswith("- "):
                     # Bullet points
                     bullet_text = line[2:]  # Remove '- '
-                    story.append(Paragraph(f"• {bullet_text}", styles['Normal']))
-                elif line.replace(' ', '').replace('-', '').replace('_', '').isalnum() and len(line) < 50:
+                    story.append(Paragraph(f"• {bullet_text}", styles["Normal"]))
+                elif (
+                    line.replace(" ", "").replace("-", "").replace("_", "").isalnum()
+                    and len(line) < 50
+                ):
                     # Section headers (short lines, mostly alphanumeric)
-                    story.append(Paragraph(line, styles['Heading2']))
+                    story.append(Paragraph(line, styles["Heading2"]))
                 else:
                     # Regular text
-                    story.append(Paragraph(line, styles['Normal']))
-                
+                    story.append(Paragraph(line, styles["Normal"]))
+
                 story.append(Spacer(1, 6))
-            
+
             doc.build(story)
-            
+
             logger.info(f"PDF generated using reportlab: {pdf_path}")
             return True
-            
+
         except Exception as e:
             logger.warning(f"reportlab failed: {e}")
 
         # Method 3: Try PyMuPDF (fallback)
         try:
             import fitz  # PyMuPDF
-            
+
             # Create a simple PDF with formatted text
             doc = fitz.open()  # create new PDF
-            page = doc.new_page() # type: ignore  # Create a new page (PyMuPDF method)
-            
+            page = doc.new_page()  # type: ignore  # Create a new page (PyMuPDF method)
+
             # Extract and clean text content from HTML
             text_content = self._html_to_text(html_content)
-            
+
             # Format the text nicely in the PDF
             self._add_formatted_text_to_pdf(page, text_content)
-            
+
             doc.save(str(pdf_path))
             doc.close()
-            
+
             logger.info(f"PDF generated using PyMuPDF: {pdf_path}")
             return True
-            
+
         except Exception as e:
             logger.warning(f"PyMuPDF failed: {e}")
 
         # All methods failed
         logger.error("All PDF generation methods failed")
         return False
-    
+
     def _extract_enhanced_content(self, html_content: str) -> str:
         """Extract just the enhanced CV content from HTML template."""
         import re
-        
+
         # Find content between <div class="content"> tags
-        content_match = re.search(r'<div class="content">\s*(.*?)\s*</div>', html_content, re.DOTALL | re.IGNORECASE)
+        content_match = re.search(
+            r'<div class="content">\s*(.*?)\s*</div>',
+            html_content,
+            re.DOTALL | re.IGNORECASE,
+        )
         if content_match:
             return content_match.group(1).strip()
-        
+
         # Fallback: extract content after </style> and before </body>
-        style_end = html_content.find('</style>')
-        body_end = html_content.find('</body>')
+        style_end = html_content.find("</style>")
+        body_end = html_content.find("</body>")
         if style_end != -1 and body_end != -1:
-            content_section = html_content[style_end + 8:body_end]
+            content_section = html_content[style_end + 8 : body_end]
             # Remove HTML tags but keep the enhanced content
-            content_section = re.sub(r'<[^>]+>', '', content_section)
+            content_section = re.sub(r"<[^>]+>", "", content_section)
             return content_section.strip()
-        
+
         # Last resort: return original content
         return self._html_to_text(html_content)
-    
+
     def _html_to_text(self, html_content: str) -> str:
         """Convert HTML content to clean text."""
         import re
-        
+
         # Remove HTML tags but preserve structure
         text = html_content
-        
+
         # Convert common HTML elements to text
-        text = re.sub(r'<h[1-6][^>]*>(.*?)</h[1-6]>', r'\n\1\n', text, flags=re.IGNORECASE | re.DOTALL)
-        text = re.sub(r'<p[^>]*>(.*?)</p>', r'\n\1\n', text, flags=re.IGNORECASE | re.DOTALL)
-        text = re.sub(r'<li[^>]*>(.*?)</li>', r'• \1\n', text, flags=re.IGNORECASE | re.DOTALL)
-        text = re.sub(r'<br[^>]*>', '\n', text, flags=re.IGNORECASE)
-        text = re.sub(r'<strong[^>]*>(.*?)</strong>', r'\1', text, flags=re.IGNORECASE | re.DOTALL)
-        text = re.sub(r'<b[^>]*>(.*?)</b>', r'\1', text, flags=re.IGNORECASE | re.DOTALL)
-        
+        text = re.sub(
+            r"<h[1-6][^>]*>(.*?)</h[1-6]>",
+            r"\n\1\n",
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        text = re.sub(
+            r"<p[^>]*>(.*?)</p>", r"\n\1\n", text, flags=re.IGNORECASE | re.DOTALL
+        )
+        text = re.sub(
+            r"<li[^>]*>(.*?)</li>", r"• \1\n", text, flags=re.IGNORECASE | re.DOTALL
+        )
+        text = re.sub(r"<br[^>]*>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(
+            r"<strong[^>]*>(.*?)</strong>", r"\1", text, flags=re.IGNORECASE | re.DOTALL
+        )
+        text = re.sub(
+            r"<b[^>]*>(.*?)</b>", r"\1", text, flags=re.IGNORECASE | re.DOTALL
+        )
+
         # Remove remaining HTML tags
-        text = re.sub(r'<[^>]+>', '', text)
-        
+        text = re.sub(r"<[^>]+>", "", text)
+
         # Clean up whitespace
-        text = re.sub(r'\n\s*\n', '\n\n', text)  # Multiple newlines to double
-        text = re.sub(r'[ \t]+', ' ', text)  # Multiple spaces to single
+        text = re.sub(r"\n\s*\n", "\n\n", text)  # Multiple newlines to double
+        text = re.sub(r"[ \t]+", " ", text)  # Multiple spaces to single
         text = text.strip()
-        
+
         return text
-    
+
     def _html_to_markdown(self, html_content: str) -> str:
         """Convert HTML content to clean markdown."""
-        
+
         # First extract the enhanced content
         enhanced_content = self._extract_enhanced_content(html_content)
-        
+
         # If it's already mostly markdown-like, return it
-        if not '<' in enhanced_content:
+        if "<" not in enhanced_content:
             return enhanced_content
-        
+
         import re
-        
+
         # Convert HTML to markdown
         markdown = enhanced_content
-        
+
         # Convert headers
-        markdown = re.sub(r'<h1[^>]*>(.*?)</h1>', r'# \1', markdown, flags=re.IGNORECASE | re.DOTALL)
-        markdown = re.sub(r'<h2[^>]*>(.*?)</h2>', r'## \1', markdown, flags=re.IGNORECASE | re.DOTALL)
-        markdown = re.sub(r'<h3[^>]*>(.*?)</h3>', r'### \1', markdown, flags=re.IGNORECASE | re.DOTALL)
-        markdown = re.sub(r'<h4[^>]*>(.*?)</h4>', r'#### \1', markdown, flags=re.IGNORECASE | re.DOTALL)
-        
+        markdown = re.sub(
+            r"<h1[^>]*>(.*?)</h1>", r"# \1", markdown, flags=re.IGNORECASE | re.DOTALL
+        )
+        markdown = re.sub(
+            r"<h2[^>]*>(.*?)</h2>", r"## \1", markdown, flags=re.IGNORECASE | re.DOTALL
+        )
+        markdown = re.sub(
+            r"<h3[^>]*>(.*?)</h3>", r"### \1", markdown, flags=re.IGNORECASE | re.DOTALL
+        )
+        markdown = re.sub(
+            r"<h4[^>]*>(.*?)</h4>",
+            r"#### \1",
+            markdown,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+
         # Convert paragraphs
-        markdown = re.sub(r'<p[^>]*>(.*?)</p>', r'\1\n', markdown, flags=re.IGNORECASE | re.DOTALL)
-        
+        markdown = re.sub(
+            r"<p[^>]*>(.*?)</p>", r"\1\n", markdown, flags=re.IGNORECASE | re.DOTALL
+        )
+
         # Convert lists
-        markdown = re.sub(r'<ul[^>]*>', '', markdown, flags=re.IGNORECASE)
-        markdown = re.sub(r'</ul>', '', markdown, flags=re.IGNORECASE)
-        markdown = re.sub(r'<li[^>]*>(.*?)</li>', r'- \1', markdown, flags=re.IGNORECASE | re.DOTALL)
-        
+        markdown = re.sub(r"<ul[^>]*>", "", markdown, flags=re.IGNORECASE)
+        markdown = re.sub(r"</ul>", "", markdown, flags=re.IGNORECASE)
+        markdown = re.sub(
+            r"<li[^>]*>(.*?)</li>", r"- \1", markdown, flags=re.IGNORECASE | re.DOTALL
+        )
+
         # Convert bold/strong
-        markdown = re.sub(r'<(strong|b)[^>]*>(.*?)</(strong|b)>', r'**\2**', markdown, flags=re.IGNORECASE | re.DOTALL)
-        
+        markdown = re.sub(
+            r"<(strong|b)[^>]*>(.*?)</(strong|b)>",
+            r"**\2**",
+            markdown,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+
         # Convert italic/em
-        markdown = re.sub(r'<(em|i)[^>]*>(.*?)</(em|i)>', r'*\2*', markdown, flags=re.IGNORECASE | re.DOTALL)
-        
+        markdown = re.sub(
+            r"<(em|i)[^>]*>(.*?)</(em|i)>",
+            r"*\2*",
+            markdown,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+
         # Convert breaks
-        markdown = re.sub(r'<br[^>]*>', '\n', markdown, flags=re.IGNORECASE)
-        
+        markdown = re.sub(r"<br[^>]*>", "\n", markdown, flags=re.IGNORECASE)
+
         # Remove remaining HTML tags
-        markdown = re.sub(r'<[^>]+>', '', markdown)
-        
+        markdown = re.sub(r"<[^>]+>", "", markdown)
+
         # Clean up whitespace
-        markdown = re.sub(r'\n\s*\n', '\n\n', markdown)  # Multiple newlines to double
-        markdown = re.sub(r'[ \t]+', ' ', markdown)  # Multiple spaces to single
+        # Multiple newlines to double
+        markdown = re.sub(r"\n\s*\n", "\n\n", markdown)
+        # Multiple spaces to single
+        markdown = re.sub(r"[ \t]+", " ", markdown)
         markdown = markdown.strip()
-        
+
         return markdown
-    
+
     def _add_formatted_text_to_pdf(self, page, text_content: str):
         """Add formatted text to PDF page using PyMuPDF."""
-        import fitz  # Import here to handle missing dependency gracefully
-        
+
         font_size = 11
         line_height = 14
         margin = 72  # 1 inch
         page_width = page.rect.width
         page_height = page.rect.height
-        
-        lines = text_content.split('\n')
+
+        lines = text_content.split("\n")
         y_position = page_height - margin
-        
+
         for line in lines:
             line = line.strip()
             if not line:
                 y_position -= line_height * 0.5  # Smaller space for empty lines
                 continue
-                
+
             # Check if it's a header (all caps or short line)
             if line.isupper() or len(line) < 50:
                 current_font_size = font_size + 2
                 # Use flags if available, otherwise skip
                 try:
-                    font_flags = fitz.TEXT_FONT_BOLD
+                    pass
                 except AttributeError:
-                    font_flags = 0
+                    pass
             else:
                 current_font_size = font_size
-                font_flags = 0
-            
+
             # Word wrap long lines
             words = line.split()
             current_line = ""
-            
+
             for word in words:
                 test_line = current_line + (" " if current_line else "") + word
-                
+
                 # Estimate text width (simple approach)
                 char_width = current_font_size * 0.6  # Approximate character width
                 text_width = len(test_line) * char_width
-                
+
                 if text_width < (page_width - 2 * margin):
                     current_line = test_line
                 else:
@@ -517,19 +613,17 @@ class CVEnhancementAgent:
                         if y_position < margin:  # Start new page if needed
                             break
                         page.insert_text(
-                            (margin, y_position), 
-                            current_line, 
-                            fontsize=current_font_size
+                            (margin, y_position),
+                            current_line,
+                            fontsize=current_font_size,
                         )
                         y_position -= line_height
                     current_line = word
-            
+
             # Print the last line
             if current_line and y_position >= margin:
                 page.insert_text(
-                    (margin, y_position), 
-                    current_line, 
-                    fontsize=current_font_size
+                    (margin, y_position), current_line, fontsize=current_font_size
                 )
                 y_position -= line_height * 1.2  # Extra space after paragraphs
 
@@ -545,21 +639,6 @@ class CVEnhancementAgent:
                 "user-agent": "GithubCopilot/1.155.0",
             },
         )
-
-    def _detect_file_type(self, file_path: str) -> FileType:
-        """Detect file type from file path or URL."""
-        path_lower = file_path.lower()
-
-        if "adobe.com" in path_lower or "express.adobe.com" in path_lower:
-            return FileType.ADOBE_EXPRESS
-        elif path_lower.endswith(".pdf"):
-            return FileType.PDF
-        elif path_lower.endswith(".docx"):
-            return FileType.DOCX
-        elif path_lower.endswith((".txt", ".md")):
-            return FileType.TEXT
-        else:
-            raise ValueError(f"Unsupported file type for: {file_path}")
 
     def _create_enhancement_prompt(
         self,
@@ -583,7 +662,7 @@ class CVEnhancementAgent:
 ## Enhancement Requirements:
 
 ### 1. Header & Name Formatting
-- Start with the candidate's name as the MAIN HEADER (use # in markdown). First Name and Middle Initial only (Satadeep Dasgupta -> S Dasgupta).
+- Start with the candidate's name as the MAIN HEADER (use # in markdown). First Name and Middle Initial only (Example: Satadeep Dasgupta -> S Dasgupta).
 - Follow with job title/role (use ## in markdown)
 - Do NOT include any contact information, addresses, emails, or phone numbers
 - Keep the header clean and professional
@@ -662,25 +741,27 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
         logger.info(f"CV enhancement workflow completed: {output_path}")
         return str(Path(output_path).absolute())
 
-    def _generate_pdf_from_content(self, content: str, output_path: str, include_logo: bool = True) -> bool:
+    def _generate_pdf_from_content(
+        self, content: str, output_path: str, include_logo: bool = True
+    ) -> bool:
         """Generate PDF directly from content string."""
         try:
+            import base64
+            import os
+
             import markdown
             from xhtml2pdf import pisa
-            import os
-            import base64
-            
+
             logger.info(f"Generating PDF from custom content: {output_path}")
-            
+
             # Convert markdown-like content to HTML with proper extensions
             html_content = markdown.markdown(
-                content, 
-                extensions=["tables", "fenced_code", "nl2br", "sane_lists"]
+                content, extensions=["tables", "fenced_code", "nl2br", "sane_lists"]
             )
-            
+
             # Generate PDF and HTML files
             output_file = Path(output_path)
-            
+
             # Check if logo should be included
             logo_html = ""
             if include_logo:
@@ -688,36 +769,59 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
                 if os.path.exists(logo_path):
                     try:
                         # Try to convert SVG to base64 for embedding
-                        with open(logo_path, 'rb') as logo_file:
-                            logo_data = base64.b64encode(logo_file.read()).decode('utf-8')
-                            logo_html = f'''
+                        with open(logo_path, "rb") as logo_file:
+                            logo_data = base64.b64encode(logo_file.read()).decode(
+                                "utf-8"
+                            )
+                            logo_html = f"""
                             <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 15px;">
                                 <img src="data:image/svg+xml;base64,{logo_data}" alt="Brainium Logo" style="max-width: 150px; height: auto;">
                             </div>
-                            '''
+                            """
                             logger.info("Logo embedded as base64")
                     except Exception as e:
                         logger.warning(f"Could not embed SVG logo: {e}")
                         # Fallback to text logo
-                        logo_html = f'''
+                        logo_html = """
                         <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 15px;">
                             <div style="font-size: 18px; font-weight: bold; color: #cc0000;">BRAINIUM</div>
                         </div>
-                        '''
+                        """
                         logger.info("Using text logo as fallback")
 
-            # Create full HTML with styling
+            # Create full HTML with styling and per-page logo frames
             full_html = f"""
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="UTF-8">
                 <style>
+                    @page {{
+                        size: a4 portrait;
+                        @frame header_frame {{           /* Static Frame */
+                            -pdf-frame-content: header_content;
+                            left: 50pt; width: 512pt; top: 50pt; height: 60pt;
+                        }}
+                        @frame content_frame {{          /* Content Frame */
+                            left: 50pt; width: 512pt; top: 120pt; height: 602pt;
+                        }}
+                        @frame footer_frame {{           /* Another static Frame */
+                            -pdf-frame-content: footer_content;
+                            left: 50pt; width: 512pt; top: 772pt; height: 20pt;
+                        }}
+                    }}
                     body {{
                         font-family: Arial, sans-serif;
                         line-height: 1.4;
-                        margin: 20px;
                         color: #333;
+                        margin: 0;
+                        padding: 0;
+                    }}
+                    #header_content {{
+                        -pdf-frame-content: header_content;
+                    }}
+                    #footer_content {{
+                        -pdf-frame-content: footer_content;
                     }}
                     h1, h2, h3, h4, h5, h6 {{
                         color: #2c3e50;
@@ -728,12 +832,14 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
                         font-size: 28px;
                         text-align: left;
                         margin-top: 0;
-                        margin-bottom: 10px;
+                        margin-bottom: 2px;
                     }}
                     h2 {{
-                        font-size: 18px;
-                        margin-top: 20px;
+                        font-size: 16px;
+                        margin-top: 2px;
                         margin-bottom: 8px;
+                        border-bottom: 1px solid #2c3e50;
+                        padding-bottom: 3px;
                     }}
                     ul, ol {{
                         margin: 5px 0;
@@ -764,25 +870,35 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
                 </style>
             </head>
             <body>
-            {logo_html}
+            <!-- Header content for every page -->
+            <div id="header_content">
+                {logo_html.replace('style="max-width: 150px; height: auto;"', 'style="max-width: 80px; height: auto;"')}
+            </div>
+            
+            <!-- Footer content for every page -->
+            <div id="footer_content">
+                <!-- Optional footer content -->
+            </div>
+            
+            <!-- Main content goes in content frame -->
             {html_content}
             </body>
             </html>
             """
-            
+
             # Save HTML file
             html_file = output_file.with_suffix(".html")
-            html_file.write_text(full_html, encoding='utf-8')
-            
+            html_file.write_text(full_html, encoding="utf-8")
+
             # Generate PDF using xhtml2pdf (same method as working original)
             pdf_file = output_file.with_suffix(".pdf")
-            
+
             with open(pdf_file, "wb") as f:
                 pisa.CreatePDF(full_html, dest=f)
-            
+
             logger.info(f"PDF generated using xhtml2pdf: {pdf_file}")
             return pdf_file.exists() and html_file.exists()
-            
+
         except Exception as e:
             logger.error(f"PDF generation from content failed: {e}")
             return False

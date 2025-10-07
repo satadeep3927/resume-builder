@@ -2,7 +2,7 @@
 Streamlit App for CV Enhancement Agent
 
 This app provides a web interface for enhancing CVs with:
-- File upload (PDF, DOCX) or Adobe Express URL input
+- File upload (PDF, DOCX) or Adobe URL input (Express & Acrobat)
 - Job description input
 - Advanced configuration options
 - PDF output with Brainium logo
@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from agents.cv_enhancement_agent import create_cv_enhancement_agent
 
@@ -26,9 +25,9 @@ logger = logging.getLogger(__name__)
 
 def cleanup_files(file_paths):
     """Clean up generated files after download."""
-    import time
     import threading
-    
+    import time
+
     def delayed_cleanup():
         # Wait a bit to ensure download completes
         time.sleep(2)
@@ -39,9 +38,10 @@ def cleanup_files(file_paths):
                     logger.info(f"Cleaned up file: {file_path}")
             except Exception as e:
                 logger.warning(f"Could not clean up {file_path}: {e}")
-    
+
     # Run cleanup in background thread
     threading.Thread(target=delayed_cleanup, daemon=True).start()
+
 
 # Page config
 st.set_page_config(
@@ -165,7 +165,7 @@ def main():
         # Input method selection
         input_method = st.radio(
             "Choose input method:",
-            ["Upload File", "Adobe Express URL"],
+            ["Upload File", "Adobe URL"],
             horizontal=True,
         )
 
@@ -190,18 +190,27 @@ def main():
 
                 st.success(f"✅ Uploaded: {uploaded_file.name}")
 
-        else:  # Adobe Express URL
+        else:  # Adobe URL
             st.markdown('<div class="upload-section">', unsafe_allow_html=True)
             adobe_url = st.text_input(
-                "Adobe Express URL",
-                placeholder="https://new.express.adobe.com/publishedV2/urn:aaid:sc:AP:...",
-                help="Paste your Adobe Express published document URL",
+                "Adobe URL",
+                placeholder="Adobe Express: https://new.express.adobe.com/publishedV2/urn:aaid:sc:AP:...\nAdobe Acrobat: https://acrobat.adobe.com/id/urn:aaid:sc:AP:...",
+                help="Paste your Adobe Express or Adobe Acrobat document URL",
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
             if adobe_url and adobe_url.startswith("https://"):
                 cv_file_path = adobe_url
-                st.success("✅ Adobe Express URL provided")
+                # Detect which Adobe service
+                if "new.express.adobe.com" in adobe_url.lower():
+                    st.success("✅ Adobe Express URL provided")
+                elif (
+                    "acrobat.adobe.com" in adobe_url.lower()
+                    or "urn:aaid:sc:AP:" in adobe_url
+                ):
+                    st.success("✅ Adobe Acrobat URL provided")
+                else:
+                    st.success("✅ Adobe URL provided")
 
     with col2:
         st.subheader("🎯 Job Description")
@@ -236,7 +245,7 @@ Requirements:
 
     # Process button
     st.markdown("---")
-    
+
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         process_btn = st.button(
@@ -249,7 +258,7 @@ Requirements:
     if process_btn:
         # Validate inputs
         if not cv_file_path:
-            st.error("❌ Please provide a CV file or Adobe Express URL")
+            st.error("❌ Please provide a CV file or Adobe URL")
         elif not job_description or not job_description.strip():
             st.error("❌ Please provide a job description")
         else:
@@ -319,40 +328,49 @@ Requirements:
         if html_file.exists() and not st.session_state.edited_content:
             with open(html_file, "r", encoding="utf-8") as f:
                 html_content = f.read()
-                
+
             # Extract enhanced content from HTML
             import re
-            
+
             try:
                 from bs4 import BeautifulSoup
-                soup = BeautifulSoup(html_content, 'html.parser')
-                content_div = soup.find('div', class_='content')
-                
+
+                soup = BeautifulSoup(html_content, "html.parser")
+                content_div = soup.find("div", class_="content")
+
                 if content_div:
                     # Convert HTML back to markdown-like text for editing
-                    enhanced_text = content_div.get_text(separator='\n\n', strip=True)
+                    enhanced_text = content_div.get_text(separator="\n\n", strip=True)
                 else:
                     # Fallback - try to extract from HTML structure
-                    enhanced_text = "Could not extract content for editing. Please regenerate."
+                    enhanced_text = (
+                        "Could not extract content for editing. Please regenerate."
+                    )
             except ImportError:
                 # If BeautifulSoup is not available, use regex fallback
-                content_match = re.search(r'<div class="content">\s*(.*?)\s*</div>', html_content, re.DOTALL | re.IGNORECASE)
+                content_match = re.search(
+                    r'<div class="content">\s*(.*?)\s*</div>',
+                    html_content,
+                    re.DOTALL | re.IGNORECASE,
+                )
                 if content_match:
                     enhanced_text = content_match.group(1).strip()
                     # Basic HTML tag removal
-                    enhanced_text = re.sub(r'<[^>]+>', '', enhanced_text)
+                    enhanced_text = re.sub(r"<[^>]+>", "", enhanced_text)
                 else:
-                    enhanced_text = "Could not extract content for editing. Please regenerate."
+                    enhanced_text = (
+                        "Could not extract content for editing. Please regenerate."
+                    )
 
             # Set the content ONLY if it's empty
             st.session_state.edited_content = enhanced_text
 
         # ALWAYS show tabs for Edit and Preview (moved outside the if condition)
         edit_tab, preview_tab = st.tabs(["✏️ Edit Content", "👀 Preview"])
-        
+
         with edit_tab:
             st.markdown("**Edit your enhanced CV content below:**")
-            
+
             # Editable text area - ALWAYS use session state as source of truth
             edited_content = st.text_area(
                 "Enhanced CV Content",
@@ -361,49 +379,57 @@ Requirements:
                 key="cv_editor",
                 help="You can edit the enhanced CV content here. The formatting will be preserved when regenerating the PDF.",
             )
-            
+
             # ALWAYS update session state when content changes
             st.session_state.edited_content = edited_content
-            
+
             # Regenerate button
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                if st.button("🔄 Regenerate PDF with Changes", type="primary", use_container_width=True):
+                if st.button(
+                    "🔄 Regenerate PDF with Changes",
+                    type="primary",
+                    use_container_width=True,
+                ):
                     with st.spinner("🔄 Regenerating PDF with your changes..."):
                         try:
                             # Create agent
                             agent = create_cv_enhancement_agent()
-                            
+
                             # Generate new files with edited content - use CURRENT content from text area
                             new_output_path = f"edited_resume_{int(time.time())}"
-                            
+
                             # Call the agent's method to generate PDF with custom content
                             success = agent._generate_pdf_from_content(
                                 content=edited_content,  # Use the content from the text area directly
                                 output_path=new_output_path,
-                                include_logo=include_logo
+                                include_logo=include_logo,
                             )
-                            
+
                             if success:
                                 # Update session state with new files
                                 st.session_state.result_path = new_output_path
-                                st.success("✅ PDF regenerated successfully with your changes!")
+                                st.success(
+                                    "✅ PDF regenerated successfully with your changes!"
+                                )
                                 st.rerun()
                             else:
                                 st.error("❌ Failed to regenerate PDF")
-                                
+
                         except Exception as e:
                             st.error(f"❌ Regeneration failed: {str(e)}")
                             logger.error(f"Regeneration error: {e}")
-        
+
         with preview_tab:
             st.markdown("**Preview of your edited content:**")
-            
+
             # Display the edited content as markdown
             if st.session_state.edited_content:
                 st.markdown(st.session_state.edited_content)
             else:
-                st.info("No content to preview. Please edit the content in the Edit tab.")
+                st.info(
+                    "No content to preview. Please edit the content in the Edit tab."
+                )
 
         # Download section
         st.markdown("---")
@@ -441,7 +467,7 @@ Requirements:
         st.markdown("---")
         with st.expander("� Additional Download Options"):
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 # Download as plain text
                 if st.session_state.edited_content:
@@ -452,7 +478,7 @@ Requirements:
                         mime="text/plain",
                         use_container_width=True,
                     )
-            
+
             with col2:
                 # Download as markdown
                 if st.session_state.edited_content:
