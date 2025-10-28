@@ -213,8 +213,8 @@ class CVEnhancementAgent:
                                 "utf-8"
                             )
                             logo_html = f"""
-                            <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 15px;">
-                                <img src="data:image/svg+xml;base64,{logo_data}" alt="Brainium Logo" style="max-width: 150px; height: auto;">
+                            <div style="text-align: center; margin-bottom: 20px;">
+                                <img src="data:image/svg+xml;base64,{logo_data}" alt="Brainium Logo" style="max-width: 150px; height: auto; display: block; margin: 0 auto;">
                             </div>
                             """
                             logger.info("Logo embedded as base64")
@@ -252,33 +252,50 @@ class CVEnhancementAgent:
                     body {{
                         font-family: Arial, sans-serif;
                         line-height: 1.4;
-                        color: #333;
+                        color: #000000;
                         margin: 0;
                         padding: 0;
+                        font-size: 15px;
                     }}
                     #header_content {{
                         -pdf-frame-content: header_content;
+                        text-align: center;
+                        padding-bottom: 5px;
                     }}
                     #footer_content {{
                         -pdf-frame-content: footer_content;
                     }}
                     h1, h2, h3, h4, h5, h6 {{
-                        color: #2c3e50;
+                        color: #000000;
                         margin-top: 15px;
                         margin-bottom: 8px;
+                        font-size: 15px;
                     }}
                     h1 {{
-                        font-size: 28px;
-                        text-align: left;
+                        font-size: 15px;
+                        text-align: right;
                         margin-top: 0;
                         margin-bottom: 2px;
                     }}
                     h2 {{
-                        font-size: 16px;
+                        font-size: 15px;
+                        text-align: right;
                         margin-top: 2px;
-                        margin-bottom: 8px;
-                        border-bottom: 1px solid #2c3e50;
-                        padding-bottom: 3px;
+                        margin-bottom: 15px;
+                        border-bottom: 1px solid #cccccc;
+                        padding-bottom: 2px;
+                    }}
+                    h3 {{
+                        font-size: 15px;
+                        margin-top: 20px;
+                        margin-bottom: 10px;
+                        text-decoration: underline;
+                    }}
+                    p {{
+                        font-size: 15px;
+                    }}
+                    li {{
+                        font-size: 15px;
                     }}
                     ul, ol {{
                         margin: 5px 0;
@@ -298,7 +315,7 @@ class CVEnhancementAgent:
                         margin: 5px 0;
                     }}
                     strong {{
-                        color: #2c3e50;
+                        color: #333333;
                     }}
                     code {{
                         background-color: #f8f9fa;
@@ -662,29 +679,44 @@ class CVEnhancementAgent:
 ## Enhancement Requirements:
 
 ### 1. Header & Name Formatting
-- Start with the candidate's name as the MAIN HEADER (use # in markdown). First Name and Middle Initial only (Example: Satadeep Dasgupta -> S Dasgupta).
+- Start with the candidate's name as the MAIN HEADER (use # in markdown). First name full and then Initial (Example: Satadeep Dasgupta -> Satadeep D).
 - Follow with job title/role (use ## in markdown)
 - Do NOT include any contact information, addresses, emails, or phone numbers
 - Keep the header clean and professional
 
-### 2. JD Alignment & Content Refinement
+### 2. Section Structure (Use these EXACT section titles with ### headers):
+- Professional Summary:
+- Core Technical Skills:
+- Professional Experience:
+- Education:
+
+### 3. Text Formatting Guidelines
+- Use **bold** for ALL technical skills (programming languages, frameworks, tools, technologies)
+- Use **bold** for job titles/positions and company types
+- Use **bold** for key achievements and quantifiable metrics (numbers, percentages, results)
+- Use **bold** for important keywords that match the job description
+- Use **bold** for certifications, degrees, and qualifications
+- Format all bullet points with proper markdown bullets (- or •)
+- Make every technical term, tool, and skill name **bold** to stand out
+
+### 4. JD Alignment & Content Refinement
 - Analyze job requirements and optimize CV content accordingly
 - Add missing elements that align with job requirements (realistically)
 - Optimize keywords for ATS compatibility
 - Enhance achievements with quantifiable results
 
-### 3. Anonymization
+### 5. Anonymization
 - Remove ALL company names - replace with generic descriptions (e.g., "Leading Tech Company")
 - Remove ALL personal contact details (email, phone, address)
 - Maintain role context without revealing specific organizations
 
-### 4. Portfolio & Project Enhancement
+### 6. Portfolio & Project Enhancement
 - Expand project descriptions with technical details
 - Add relevant tech stacks and methodologies
 - Include project scope and business impact with metrics
 - Add modern technologies that align with the JD (realistically)
 
-### 5. Content Restrictions
+### 7. Content Restrictions
 - Do NOT include "Portfolio, code samples, and certification transcripts available upon request"
 - Do NOT include any availability statements or contact requests
 - Do NOT include any meta-commentary about the enhancement process
@@ -698,7 +730,7 @@ class CVEnhancementAgent:
 {job_description}
 {additional_context}
 
-Return ONLY the enhanced CV content starting with the candidate's name as the main header, followed by sections: Professional Summary, Technical Skills, Professional Experience, Projects, Education. Use proper markdown formatting with # for the name and ## for section headers. Do not include any commentary or explanations about the enhancement process."""
+Return ONLY the enhanced CV content starting with the candidate's name as the main header (#), followed by role (##), then the sections using ### headers: Professional Summary:, Core Technical Skills:, Professional Experience:, Education:. Use proper markdown formatting and do not include any commentary about the enhancement process."""
 
     def process_cv_enhancement(
         self,
@@ -774,8 +806,8 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
                                 "utf-8"
                             )
                             logo_html = f"""
-                            <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 15px;">
-                                <img src="data:image/svg+xml;base64,{logo_data}" alt="Brainium Logo" style="max-width: 150px; height: auto;">
+                            <div style="text-align: center; margin-bottom: 20px;">
+                                <img src="data:image/svg+xml;base64,{logo_data}" alt="Brainium Logo" style="max-width: 150px; height: auto; display: block; margin: 0 auto;">
                             </div>
                             """
                             logger.info("Logo embedded as base64")
@@ -783,8 +815,8 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
                         logger.warning(f"Could not embed SVG logo: {e}")
                         # Fallback to text logo
                         logo_html = """
-                        <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 15px;">
-                            <div style="font-size: 18px; font-weight: bold; color: #cc0000;">BRAINIUM</div>
+                        <div style="text-align: center; margin-bottom: 20px; padding-bottom: 15px;">
+                            <div style="font-size: 18px; font-weight: bold; color: #000000;">BRAINIUM</div>
                         </div>
                         """
                         logger.info("Using text logo as fallback")
@@ -813,53 +845,70 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
                     body {{
                         font-family: Arial, sans-serif;
                         line-height: 1.4;
-                        color: #333;
+                        color: #000000;
                         margin: 0;
                         padding: 0;
+                        font-size: 15px;
                     }}
                     #header_content {{
                         -pdf-frame-content: header_content;
+                        text-align: center;
+                        padding-bottom: 5px;
                     }}
                     #footer_content {{
                         -pdf-frame-content: footer_content;
                     }}
                     h1, h2, h3, h4, h5, h6 {{
-                        color: #2c3e50;
+                        color: #000000;
                         margin-top: 15px;
                         margin-bottom: 8px;
+                        font-size: 15px;
                     }}
                     h1 {{
-                        font-size: 28px;
-                        text-align: left;
+                        font-size: 15px;
+                        text-align: right;
                         margin-top: 0;
                         margin-bottom: 2px;
+                        padding-bottom: 2px;
                     }}
                     h2 {{
-                        font-size: 16px;
+                        font-size: 15px;
                         margin-top: 2px;
                         margin-bottom: 8px;
-                        border-bottom: 1px solid #2c3e50;
-                        padding-bottom: 3px;
+                        border-bottom: 1px solid #cccccc;
+                        padding-bottom: 2px;
+                        text-align: right;
+                    }}
+                    h3 {{
+                        font-size: 15px;
+                        text-decoration: underline;
                     }}
                     ul, ol {{
                         margin: 5px 0;
                         padding-left: 20px;
+                        list-style-type: disc;
                     }}
                     li {{
                         margin: 2px 0;
                         line-height: 1.3;
+                        font-size: 15px;
+                        list-style-type: disc;
+                        list-style-position: outside;
                     }}
                     ul li {{
                         list-style-type: disc;
+                        list-style-position: outside;
                     }}
                     ul li ul li {{
                         list-style-type: circle;
+                        list-style-position: outside;
                     }}
                     p {{
                         margin: 5px 0;
+                        font-size: 15px;
                     }}
                     strong {{
-                        color: #2c3e50;
+                        color: #333333;
                     }}
                     code {{
                         background-color: #f8f9fa;
