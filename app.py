@@ -318,6 +318,9 @@ Requirements:
 
                     st.session_state.processed = True
                     st.session_state.result_path = result_path
+                    st.session_state.filename = craete_filename_from_name_and_role(
+                        Path(result_path).with_suffix(".html")
+                    )
                     # Clear edited content so new enhancement will be loaded
                     st.session_state.edited_content = ""
 
@@ -343,7 +346,6 @@ Requirements:
         result_path = Path(st.session_state.result_path)
         html_file = result_path.with_suffix(".html")
         pdf_file = result_path.with_suffix(".pdf")
-        st.session_state.filename = craete_filename_from_name_and_role(html_file)
 
         # Load the enhanced content for editing - ONLY ONCE when first processing
         if html_file.exists() and not st.session_state.edited_content:
