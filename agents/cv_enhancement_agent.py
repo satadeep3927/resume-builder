@@ -707,7 +707,7 @@ class CVEnhancementAgent:
 
 ### 5. Anonymization
 - Remove ALL company names - replace with generic descriptions (e.g., "Leading Tech Company")
-- Remove ALL personal contact details (email, phone, address)
+- Remove ALL personal contact details (email, phone, address, college name or school name)
 - Maintain role context without revealing specific organizations
 
 ### 6. Portfolio & Project Enhancement
