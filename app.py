@@ -10,6 +10,7 @@ This app provides a web interface for enhancing CVs with:
 
 import logging
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -78,6 +79,24 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
+
+def craete_filename_from_name_and_role(html_path: str) -> str:
+    """Create a filename based on the user's name and target role."""
+    with open(html_path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+        # First '# ' is name for markdown and '## ' is role
+        name_match = re.search(r"# (.+)", html_content)
+        role_match = re.search(r"## (.+)", html_content)
+
+        if name_match and role_match:
+            name = name_match.group(1).strip().replace(" ", "_")
+            role = role_match.group(1).strip().replace(" ", "_")
+            filename = f"{name}_{role}.pdf"
+        else:
+            filename = "enhanced_resume.pdf"
+
+        return filename
 
 
 def main():
@@ -444,7 +463,7 @@ Requirements:
                     st.download_button(
                         "📄 Download PDF",
                         data=pdf_data,
-                        file_name=f"enhanced_resume_{int(time.time())}.pdf",
+                        file_name=craete_filename_from_name_and_role(str(html_file)),
                         mime="application/pdf",
                         use_container_width=True,
                         on_click=lambda: cleanup_files([pdf_file, html_file]),
