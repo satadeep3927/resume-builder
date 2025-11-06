@@ -343,6 +343,7 @@ Requirements:
         result_path = Path(st.session_state.result_path)
         html_file = result_path.with_suffix(".html")
         pdf_file = result_path.with_suffix(".pdf")
+        st.session_state.filename = craete_filename_from_name_and_role(html_file)
 
         # Load the enhanced content for editing - ONLY ONCE when first processing
         if html_file.exists() and not st.session_state.edited_content:
@@ -465,8 +466,7 @@ Requirements:
                     st.download_button(
                         "📄 Download PDF",
                         data=pdf_data,
-                        file_name=craete_filename_from_name_and_role(
-                            html_file),
+                        file_name=st.session_state.filename,
                         mime="application/pdf",
                         use_container_width=True,
                         on_click=lambda: cleanup_files([pdf_file, html_file]),
