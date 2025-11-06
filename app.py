@@ -81,7 +81,7 @@ st.markdown(
 )
 
 
-def craete_filename_from_name_and_role(html_path: str) -> str:
+def craete_filename_from_name_and_role(html_path: Path) -> str:
     """Create a filename based on the user's name and target role."""
     with open(html_path, "r", encoding="utf-8") as f:
         html_content = f.read()
@@ -161,7 +161,8 @@ def main():
             emphasize_scale = st.checkbox(
                 "Emphasize Scalability", help="Highlight scalable solutions"
             )
-            include_metrics = st.checkbox("Include Performance Metrics", value=True)
+            include_metrics = st.checkbox(
+                "Include Performance Metrics", value=True)
 
             target_company = st.selectbox(
                 "Target Company Type",
@@ -359,7 +360,8 @@ Requirements:
 
                 if content_div:
                     # Convert HTML back to markdown-like text for editing
-                    enhanced_text = content_div.get_text(separator="\n\n", strip=True)
+                    enhanced_text = content_div.get_text(
+                        separator="\n\n", strip=True)
                 else:
                     # Fallback - try to extract from HTML structure
                     enhanced_text = (
@@ -463,7 +465,8 @@ Requirements:
                     st.download_button(
                         "📄 Download PDF",
                         data=pdf_data,
-                        file_name=craete_filename_from_name_and_role(str(html_file)),
+                        file_name=craete_filename_from_name_and_role(
+                            html_file),
                         mime="application/pdf",
                         use_container_width=True,
                         on_click=lambda: cleanup_files([pdf_file, html_file]),
