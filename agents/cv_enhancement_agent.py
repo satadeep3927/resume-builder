@@ -706,7 +706,7 @@ class CVEnhancementAgent:
 - Enhance achievements with quantifiable results
 
 ### 5. Anonymization
-- Remove ALL company names - replace with generic descriptions (e.g., "Leading Tech Company")
+- Remove ALL company names - Only current company should be Brainium Information Technologies Pvt Ltd
 - Remove ALL personal contact details (email, phone, address, college name or school name)
 - Maintain role context without revealing specific organizations
 
