@@ -837,6 +837,7 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
                     for run in paragraph.runs:
                         run.font.size = Pt(16)
                         run.font.bold = True
+                        run.font.color.rgb = RGBColor(0, 0, 0)
 
                 # Heading 2 (Role - double ##)
                 elif line.startswith("## "):
@@ -845,6 +846,7 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
                     paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
                     for run in paragraph.runs:
                         run.font.size = Pt(14)
+                        run.font.color.rgb = RGBColor(0, 0, 0)
 
                 # Heading 3 (Section headers - triple ###)
                 elif line.startswith("### "):
@@ -853,6 +855,25 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
                     for run in heading.runs:
                         run.font.size = Pt(13)
                         run.font.underline = True
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+
+                # Heading 4 (Subsection headers - quadruple ####)
+                elif line.startswith("#### "):
+                    text = line[5:].strip()
+                    heading = doc.add_heading(text, level=4)
+                    for run in heading.runs:
+                        run.font.size = Pt(12)
+                        run.font.bold = True
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+
+                # Heading 5 (Minor headers - quintuple #####)
+                elif line.startswith("##### "):
+                    text = line[6:].strip()
+                    heading = doc.add_heading(text, level=5)
+                    for run in heading.runs:
+                        run.font.size = Pt(11)
+                        run.font.bold = True
+                        run.font.color.rgb = RGBColor(0, 0, 0)
 
                 # Bullet points
                 elif line.startswith("- ") or line.startswith("* "):

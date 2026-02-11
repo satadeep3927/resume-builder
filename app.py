@@ -161,8 +161,7 @@ def main():
             emphasize_scale = st.checkbox(
                 "Emphasize Scalability", help="Highlight scalable solutions"
             )
-            include_metrics = st.checkbox(
-                "Include Performance Metrics", value=True)
+            include_metrics = st.checkbox("Include Performance Metrics", value=True)
 
             target_company = st.selectbox(
                 "Target Company Type",
@@ -363,8 +362,7 @@ Requirements:
 
                 if content_div:
                     # Convert HTML back to markdown-like text for editing
-                    enhanced_text = content_div.get_text(
-                        separator="\n\n", strip=True)
+                    enhanced_text = content_div.get_text(separator="\n\n", strip=True)
                 else:
                     # Fallback - try to extract from HTML structure
                     enhanced_text = (
@@ -476,27 +474,33 @@ Requirements:
 
         with col2:
             # Generate and download DOCX
-            if st.button("📝 Generate & Download DOCX", use_container_width=True, type="secondary"):
+            if st.button(
+                "📝 Generate & Download DOCX",
+                use_container_width=True,
+                type="secondary",
+            ):
                 with st.spinner("🔄 Generating DOCX..."):
                     try:
                         # Create agent and generate DOCX
                         agent = create_cv_enhancement_agent()
                         docx_output_path = f"docx_resume_{int(time.time())}"
-                        
+
                         success = agent._generate_docx_from_content(
                             content=st.session_state.edited_content,
                             output_path=docx_output_path,
                             include_logo=include_logo,
                         )
-                        
+
                         if success:
                             docx_file = Path(docx_output_path).with_suffix(".docx")
                             with open(docx_file, "rb") as f:
                                 docx_data = f.read()
-                            
+
                             # Create filename for DOCX
-                            docx_filename = st.session_state.filename.replace(".pdf", ".docx")
-                            
+                            docx_filename = st.session_state.filename.replace(
+                                ".pdf", ".docx"
+                            )
+
                             st.download_button(
                                 "💾 Download DOCX",
                                 data=docx_data,
@@ -509,7 +513,7 @@ Requirements:
                             st.success("✅ DOCX generated successfully!")
                         else:
                             st.error("❌ Failed to generate DOCX")
-                    
+
                     except Exception as e:
                         st.error(f"❌ DOCX generation failed: {str(e)}")
                         logger.error(f"DOCX generation error: {e}")
