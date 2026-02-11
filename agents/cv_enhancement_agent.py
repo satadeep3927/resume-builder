@@ -830,7 +830,7 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
 
                 # Heading 1 (Name - single #)
                 if line.startswith("# ") and not line.startswith("## "):
-                    text = line[2:].strip()
+                    text = self._strip_markdown_formatting(line[2:].strip())
                     paragraph = doc.add_heading(text, level=1)
                     paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
                     # Make it bold and slightly larger
@@ -841,7 +841,7 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
 
                 # Heading 2 (Role - double ##)
                 elif line.startswith("## "):
-                    text = line[3:].strip()
+                    text = self._strip_markdown_formatting(line[3:].strip())
                     paragraph = doc.add_heading(text, level=2)
                     paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
                     for run in paragraph.runs:
@@ -850,7 +850,7 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
 
                 # Heading 3 (Section headers - triple ###)
                 elif line.startswith("### "):
-                    text = line[4:].strip()
+                    text = self._strip_markdown_formatting(line[4:].strip())
                     heading = doc.add_heading(text, level=3)
                     for run in heading.runs:
                         run.font.size = Pt(13)
@@ -859,7 +859,7 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
 
                 # Heading 4 (Subsection headers - quadruple ####)
                 elif line.startswith("#### "):
-                    text = line[5:].strip()
+                    text = self._strip_markdown_formatting(line[5:].strip())
                     heading = doc.add_heading(text, level=4)
                     for run in heading.runs:
                         run.font.size = Pt(12)
@@ -868,7 +868,7 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
 
                 # Heading 5 (Minor headers - quintuple #####)
                 elif line.startswith("##### "):
-                    text = line[6:].strip()
+                    text = self._strip_markdown_formatting(line[6:].strip())
                     heading = doc.add_heading(text, level=5)
                     for run in heading.runs:
                         run.font.size = Pt(11)
@@ -907,6 +907,16 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
 
             logger.error(traceback.format_exc())
             return False
+
+    def _strip_markdown_formatting(self, text: str) -> str:
+        """Remove markdown formatting markers from text."""
+        # Remove bold (**text** or __text__)
+        text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+        text = re.sub(r'__(.+?)__', r'\1', text)
+        # Remove italic (*text* or _text_)
+        text = re.sub(r'\*(.+?)\*', r'\1', text)
+        text = re.sub(r'_(.+?)_', r'\1', text)
+        return text
 
     def _add_formatted_text(self, paragraph, text):
         """Add formatted text with bold and other styles to a paragraph."""
