@@ -8,15 +8,26 @@ This agent provides comprehensive CV enhancement services including:
 - Professional formatting
 """
 
+import base64
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Dict, Optional, TypedDict, Union
 
+import fitz  # PyMuPDF
+import markdown
 import openai
+from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Inches, Pt, RGBColor
 from jinja2 import Environment, FileSystemLoader
 from langgraph.graph import END, StateGraph
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+from xhtml2pdf import pisa
 
 from common.settings import config
 from core.document_loader import detect_file_type, load_document
@@ -183,11 +194,6 @@ class CVEnhancementAgent:
 
         # Method 1: Try markdown + xhtml2pdf (clean and simple) - Primary method
         try:
-            import os
-
-            import markdown
-            from xhtml2pdf import pisa
-
             logger.info("Using markdown + xhtml2pdf for clean PDF generation")
 
             # Extract and convert HTML content to markdown
@@ -206,8 +212,6 @@ class CVEnhancementAgent:
                 if os.path.exists(logo_path):
                     try:
                         # Try to convert SVG to base64 for embedding
-                        import base64
-
                         with open(logo_path, "rb") as logo_file:
                             logo_data = base64.b64encode(logo_file.read()).decode(
                                 "utf-8"
@@ -353,10 +357,6 @@ class CVEnhancementAgent:
 
         # Method 2: Try reportlab (pure Python PDF generation) - Fallback method
         try:
-            from reportlab.lib.pagesizes import letter
-            from reportlab.lib.styles import getSampleStyleSheet
-            from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
-
             # Create PDF using reportlab
             doc = SimpleDocTemplate(
                 str(pdf_path),
@@ -419,8 +419,6 @@ class CVEnhancementAgent:
 
         # Method 3: Try PyMuPDF (fallback)
         try:
-            import fitz  # PyMuPDF
-
             # Create a simple PDF with formatted text
             doc = fitz.open()  # create new PDF
             page = doc.new_page()  # type: ignore  # Create a new page (PyMuPDF method)
@@ -446,8 +444,6 @@ class CVEnhancementAgent:
 
     def _extract_enhanced_content(self, html_content: str) -> str:
         """Extract just the enhanced CV content from HTML template."""
-        import re
-
         # Find content between <div class="content"> tags
         content_match = re.search(
             r'<div class="content">\s*(.*?)\s*</div>',
@@ -471,8 +467,6 @@ class CVEnhancementAgent:
 
     def _html_to_text(self, html_content: str) -> str:
         """Convert HTML content to clean text."""
-        import re
-
         # Remove HTML tags but preserve structure
         text = html_content
 
@@ -516,8 +510,6 @@ class CVEnhancementAgent:
         # If it's already mostly markdown-like, return it
         if "<" not in enhanced_content:
             return enhanced_content
-
-        import re
 
         # Convert HTML to markdown
         markdown = enhanced_content
@@ -722,6 +714,9 @@ class CVEnhancementAgent:
 - Do NOT include any meta-commentary about the enhancement process
 - Do NOT mention that "this CV was enhanced" or reference the enhancement process
 - Focus only on professional qualifications and achievements
+- Do not overstate or fabricate experience - keep it realistic and aligned with the original CV's context. Don't focus on 100% alignment if it means adding unrealistic content. Prioritize authenticity while optimizing for the job description.
+- Use Human-like language that is clear, concise, and professional. Avoid overly formal or robotic phrasing.
+- Don't Use Characters like Long dashes, emojis, or special symbols that may not render well in all formats. Stick to standard characters for maximum compatibility.
 
 ## Current CV:
 {cv_content}
@@ -773,17 +768,150 @@ Return ONLY the enhanced CV content starting with the candidate's name as the ma
         logger.info(f"CV enhancement workflow completed: {output_path}")
         return str(Path(output_path).absolute())
 
+    def _generate_docx_from_content(
+        self, content: str, output_path: str, include_logo: bool = True
+    ) -> bool:
+        """Generate DOCX directly from content string."""
+        try:
+            logger.info(f"Generating DOCX from custom content: {output_path}")
+
+            # Create a new Document
+            doc = Document()
+
+            # Set document margins
+            sections = doc.sections
+            for section in sections:
+                section.top_margin = Inches(0.7)
+                section.bottom_margin = Inches(0.7)
+                section.left_margin = Inches(0.7)
+                section.right_margin = Inches(0.7)
+
+            # Add logo if requested
+            if include_logo:
+                logo_path = os.path.join(os.getcwd(), "assets", "brainium-logo.svg")
+                # Try to add logo - SVG might not work, so we'll try PNG fallback
+                logo_png_path = os.path.join(os.getcwd(), "assets", "brainium-logo.png")
+
+                logo_added = False
+                for path in [logo_png_path, logo_path]:
+                    if os.path.exists(path):
+                        try:
+                            logo_paragraph = doc.add_paragraph()
+                            logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = logo_paragraph.add_run()
+                            run.add_picture(path, width=Inches(1.5))
+                            logo_added = True
+                            logger.info(f"Logo added from {path}")
+                            break
+                        except Exception as e:
+                            logger.warning(f"Could not add logo from {path}: {e}")
+
+                if not logo_added:
+                    # Add text logo as fallback
+                    logo_paragraph = doc.add_paragraph("BRAINIUM")
+                    logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    logo_run = logo_paragraph.runs[0]
+                    logo_run.font.size = Pt(18)
+                    logo_run.font.bold = True
+                    logger.info("Using text logo as fallback")
+
+                # Add space after logo
+                doc.add_paragraph()
+
+            # Parse and add content
+            lines = content.split("\n")
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+
+                if not line:
+                    i += 1
+                    continue
+
+                # Heading 1 (Name - single #)
+                if line.startswith("# ") and not line.startswith("## "):
+                    text = line[2:].strip()
+                    paragraph = doc.add_heading(text, level=1)
+                    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                    # Make it bold and slightly larger
+                    for run in paragraph.runs:
+                        run.font.size = Pt(16)
+                        run.font.bold = True
+
+                # Heading 2 (Role - double ##)
+                elif line.startswith("## "):
+                    text = line[3:].strip()
+                    paragraph = doc.add_heading(text, level=2)
+                    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                    for run in paragraph.runs:
+                        run.font.size = Pt(14)
+
+                # Heading 3 (Section headers - triple ###)
+                elif line.startswith("### "):
+                    text = line[4:].strip()
+                    heading = doc.add_heading(text, level=3)
+                    for run in heading.runs:
+                        run.font.size = Pt(13)
+                        run.font.underline = True
+
+                # Bullet points
+                elif line.startswith("- ") or line.startswith("* "):
+                    text = line[2:].strip()
+                    # Handle bold text **text**
+                    paragraph = doc.add_paragraph(style="List Bullet")
+                    self._add_formatted_text(paragraph, text)
+
+                # Horizontal rule
+                elif line.startswith("---"):
+                    doc.add_paragraph()
+
+                # Regular paragraph
+                else:
+                    paragraph = doc.add_paragraph()
+                    self._add_formatted_text(paragraph, line)
+
+                i += 1
+
+            # Save DOCX file
+            output_file = Path(output_path)
+            docx_file = output_file.with_suffix(".docx")
+            doc.save(str(docx_file))
+
+            logger.info(f"DOCX generated: {docx_file}")
+            return docx_file.exists()
+
+        except Exception as e:
+            logger.error(f"DOCX generation from content failed: {e}")
+            import traceback
+
+            logger.error(traceback.format_exc())
+            return False
+
+    def _add_formatted_text(self, paragraph, text):
+        """Add formatted text with bold and other styles to a paragraph."""
+        # Split text by bold markers **
+        parts = re.split(r"(\*\*.*?\*\*)", text)
+
+        for part in parts:
+            if not part:
+                continue
+
+            if part.startswith("**") and part.endswith("**"):
+                # Bold text
+                bold_text = part[2:-2]
+                run = paragraph.add_run(bold_text)
+                run.font.bold = True
+                run.font.size = Pt(11)
+            else:
+                # Regular text
+                run = paragraph.add_run(part)
+                run.font.size = Pt(11)
+
     def _generate_pdf_from_content(
         self, content: str, output_path: str, include_logo: bool = True
     ) -> bool:
         """Generate PDF directly from content string."""
         try:
-            import base64
-            import os
-
-            import markdown
-            from xhtml2pdf import pisa
-
             logger.info(f"Generating PDF from custom content: {output_path}")
 
             # Convert markdown-like content to HTML with proper extensions

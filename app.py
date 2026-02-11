@@ -459,7 +459,7 @@ Requirements:
         st.markdown("---")
         st.subheader("📥 Download Files")
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
 
         with col1:
             if pdf_file.exists():
@@ -475,6 +475,46 @@ Requirements:
                     )
 
         with col2:
+            # Generate and download DOCX
+            if st.button("📝 Generate & Download DOCX", use_container_width=True, type="secondary"):
+                with st.spinner("🔄 Generating DOCX..."):
+                    try:
+                        # Create agent and generate DOCX
+                        agent = create_cv_enhancement_agent()
+                        docx_output_path = f"docx_resume_{int(time.time())}"
+                        
+                        success = agent._generate_docx_from_content(
+                            content=st.session_state.edited_content,
+                            output_path=docx_output_path,
+                            include_logo=include_logo,
+                        )
+                        
+                        if success:
+                            docx_file = Path(docx_output_path).with_suffix(".docx")
+                            with open(docx_file, "rb") as f:
+                                docx_data = f.read()
+                            
+                            # Create filename for DOCX
+                            docx_filename = st.session_state.filename.replace(".pdf", ".docx")
+                            
+                            st.download_button(
+                                "💾 Download DOCX",
+                                data=docx_data,
+                                file_name=docx_filename,
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                use_container_width=True,
+                                key="docx_download",
+                                on_click=lambda: cleanup_files([docx_file]),
+                            )
+                            st.success("✅ DOCX generated successfully!")
+                        else:
+                            st.error("❌ Failed to generate DOCX")
+                    
+                    except Exception as e:
+                        st.error(f"❌ DOCX generation failed: {str(e)}")
+                        logger.error(f"DOCX generation error: {e}")
+
+        with col3:
             if html_file.exists():
                 with open(html_file, "r", encoding="utf-8") as f:
                     html_data = f.read()
