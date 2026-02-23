@@ -27,3 +27,4 @@ pytesseract  # OCR engine for text extraction from images
 black
 isort
 ruff
+imghdr
